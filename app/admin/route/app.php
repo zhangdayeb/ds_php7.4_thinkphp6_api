@@ -2,7 +2,11 @@
 
 use think\facade\Route;
 
-//Route::group(function () {});
+Route::rule('/$', function () {
+    return 'hello,ThinkPHP6! admin';
+});
+
+
 Route::rule('login/index$', 'admin/Login/index');//登陆
 Route::rule('login/captcha$', 'admin/Login/captcha');//验证码
 Route::rule('login/captcha_check$', 'admin/Login/captcha_check');//验证码

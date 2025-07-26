@@ -2,6 +2,10 @@
 
 use think\facade\Route;
 
+Route::rule('/$', function () {
+    return 'hello,ThinkPHP6! home';
+});
+
 // 存活检测
 Route::rule('check/check$', 'home/api/check'); // 选择支付方式
 
