@@ -3,7 +3,7 @@
 use think\facade\Route;
 
 Route::rule('/$', function () {
-    return 'hello,ThinkPHP6! home';
+    return 'it work! home';
 });
 
 // 存活检测

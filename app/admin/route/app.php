@@ -3,7 +3,7 @@
 use think\facade\Route;
 
 Route::rule('/$', function () {
-    return 'hello,ThinkPHP6! admin';
+    return 'it work! admin';
 });
 
 
