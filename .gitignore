@@ -1,0 +1,8 @@
+.idea
+runtime/*
+vendor/*
+.DS_Store
+public/*
+!public/wachdog-video
+.env
+nano-customer/vendor
