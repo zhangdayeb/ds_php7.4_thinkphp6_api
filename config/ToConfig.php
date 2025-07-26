@@ -10,8 +10,8 @@ return [
       'success'=>1,
     ],
     'app_update' => [
-        'image_url' => 'https://taiziapi.com/storage',//上传文件域名 图片视频等
-        'app_qrcode' => 'https://taiziapi.com/',//二维码地址
+        'image_url' => 'https://dsapi.top/storage',//上传文件域名 图片视频等
+        'app_qrcode' => 'https://dsapi.top/',//二维码地址
     ],
     'app_tg' => [
         //'tg_url' => 'tg.yhvip666.net/',//推广域名格式  xxx.tg.tp.com?code=asdasds
