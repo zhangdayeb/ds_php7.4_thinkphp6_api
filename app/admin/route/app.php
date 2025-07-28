@@ -306,6 +306,7 @@ Route::rule('storage/sys_dir', 'admin/storage.Storage/sysDir'); // 同步文件�
 Route::rule('storage/download_task', 'admin/storage.Storage/downloadTask'); // 创建下载任务
 Route::rule('storage/download_init', 'admin/storage.Storage/downloadInitTask'); // 创建初始化任务
 Route::rule('storage/scan_in_temp', 'admin/storage.Storage/scanInTemp'); // 全盘扫描入库
+Route::rule('storage/scan_in_temp_v2', 'admin/storage.scanInTemp/scanAll'); // url 手动扫描 全部扫描入库
 Route::rule('storage/clear_all', 'admin/storage.Storage/clearAll'); // 一键清理
 Route::rule('storage/task_list', 'admin/storage.Storage/taskList'); // 任务列表
 Route::rule('storage/retask', 'admin/storage.Storage/retask'); // 任务列表-重新创建
