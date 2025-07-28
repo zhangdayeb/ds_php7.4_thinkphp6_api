@@ -259,9 +259,12 @@ class scanInTemp extends BaseController
         
         if ($existingVideo) {
             // 更新现有记录
+            $relativePath = str_replace(root_path() . 'public/storage', '', $tempData['path']);
+            $relativeImage = str_replace(root_path() . 'public/storage', '', $tempData['image']);
+            
             $videoData = [
-                'video_url' => str_replace('#', '_', '/videotemp/' . str_replace(root_path() . 'public/storage', '', $tempData['path']) . '/' . $tempData['filename']),
-                'thumb_url' => str_replace('#', '_', str_replace(root_path() . 'public/storage', '', $tempData['image'])),
+                'video_url' => str_replace('#', '_', $relativePath . '/' . $tempData['filename']),
+                'thumb_url' => str_replace('#', '_', $relativeImage),
                 'description' => '扫描更新',
                 'update_time' => date('Y-m-d H:i:s'),
             ];
@@ -270,14 +273,16 @@ class scanInTemp extends BaseController
             $this->logDebug("更新视频主表记录: {$title}");
             
         } else {
-            // 创建新记录
+            // 创建新记录 - 使用 VideoTempService 的方法
             $type = $service->checkVideoType($tempData);
+            $relativePath = str_replace(root_path() . 'public/storage', '', $tempData['path']);
+            $relativeImage = str_replace(root_path() . 'public/storage', '', $tempData['image']);
             
             $videoData = [
                 'type' => $type,
                 'title' => $title,
-                'video_url' => str_replace('#', '_', '/videotemp/' . str_replace(root_path() . 'public/storage', '', $tempData['path']) . '/' . $tempData['filename']),
-                'thumb_url' => str_replace('#', '_', str_replace(root_path() . 'public/storage', '', $tempData['image'])),
+                'video_url' => str_replace('#', '_', $relativePath . '/' . $tempData['filename']),
+                'thumb_url' => str_replace('#', '_', $relativeImage),
                 'description' => '扫描新增',
                 'tags' => $tempData['tags'],
                 'admin_uid' => $adminId,

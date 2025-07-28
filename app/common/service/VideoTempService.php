@@ -256,7 +256,7 @@ class VideoTempService
      * @param string $directory
      * @return array
      */
-    protected function recursiveScanDirectory($directory)
+    public function recursiveScanDirectory($directory)
     {
         $files = [];
         $iterator = new \RecursiveIteratorIterator(
@@ -450,7 +450,7 @@ class VideoTempService
      * @param mixed $tempVideo
      * @return mixed
      */
-    protected function checkVideoType($tempVideo)
+    public function checkVideoType($tempVideo)
     {
         $hasType = VideoType::where('title', $tempVideo['type'])->find();
         $pathClear = root_path() . 'public/storage';
@@ -487,7 +487,7 @@ class VideoTempService
      * @param mixed $tempVideo
      * @return string
      */
-    protected function checkTypeLogos($tempVideo)
+    public function checkTypeLogos($tempVideo)
     {
         if ($tempVideo['type_logo'] == '') {
             return '';
@@ -521,7 +521,7 @@ class VideoTempService
      * @param mixed $tempVideo
      * @return array
      */
-    protected function checkVideoPath($tempVideo)
+    public function checkVideoPath($tempVideo)
     {
         $videoUrl = $tempVideo['path'] . '/' . $tempVideo['filename'];
         $thumbUrl = $tempVideo['image'];
@@ -553,7 +553,7 @@ class VideoTempService
      * @param mixed $videoFilePath
      * @return string
      */
-    protected function getVideoCoverImage($videoFilePath)
+    public function getVideoCoverImage($videoFilePath)
     {
         // 获取视频文件的名称（不包括路径和扩展名）
         $videoBasename = pathinfo($videoFilePath, PATHINFO_FILENAME);
@@ -598,7 +598,7 @@ class VideoTempService
      * @param mixed $filePath
      * @return string
      */
-    protected function getTypeByPath($filePath)
+    public function getTypeByPath($filePath)
     {
         $pathDir = dirname(dirname($filePath));
         $pathDirArr = explode('/', $pathDir);
@@ -612,7 +612,7 @@ class VideoTempService
      * @param mixed $filePath
      * @return string
      */
-    protected function getTagsByPath($filePath)
+    public function getTagsByPath($filePath)
     {
         $extension = $this->getExtension($filePath);
         $filename = basename($filePath);
@@ -645,7 +645,7 @@ class VideoTempService
      * @param mixed $filePath
      * @return string
      */
-    protected function getTitleByPath($filePath)
+    public function getTitleByPath($filePath)
     {
         $extension = $this->getExtension($filePath);
         $filename = basename($filePath);
@@ -669,7 +669,7 @@ class VideoTempService
      * @param mixed $filePath
      * @return string
      */
-    protected function getTypeLogo($filePath)
+    public function getTypeLogo($filePath)
     {
         $pathDir = dirname(dirname($filePath));
         $logoPath = $pathDir . '/分类logo';
@@ -689,7 +689,7 @@ class VideoTempService
      * @param mixed $dir
      * @return bool
      */
-    protected function deleteDirectory($dir) {
+    public function deleteDirectory($dir) {
         if (!file_exists($dir)) {
             return false;
         }
@@ -715,7 +715,7 @@ class VideoTempService
      * @param mixed $topDir
      * @return array
      */
-    protected function getDirectoryFileList($directories, $topDir)
+    public function getDirectoryFileList($directories, $topDir)
     {
         $files = []; // ✅ 修复：初始化 $files 数组
         
@@ -752,7 +752,7 @@ class VideoTempService
      * @param mixed $directory
      * @return string[]
      */
-    protected function getFilesFromDirectory($directory) {
+    public function getFilesFromDirectory($directory) {
         $files = [];
         // 获取目录中的所有项
         $items = scandir($directory);
