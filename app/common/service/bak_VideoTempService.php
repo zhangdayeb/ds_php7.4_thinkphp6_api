@@ -28,6 +28,7 @@ class VideoTempService
         return $model->where($where)->order('is_sys ASC,id DESC')->paginate(['list_rows' => $limit, 'page' => $page], false);
     }
 
+
     /**
      * 任务到临时表
      * @param mixed $taskSn
@@ -55,6 +56,7 @@ class VideoTempService
         return true;
     }
 
+
     /**
      * 下载完成 创建数据到临时表
      * @param mixed $filePath
@@ -76,12 +78,7 @@ class VideoTempService
         // 判断是否 进入 临时库 
         $hasHashFile = $model->where('hash', $hash)->find();
         if ($hasHashFile) {
-            // 记录日志
-            \think\facade\Log::info('文件已存在临时库', [
-                'file_path' => $filePath,
-                'existing_id' => $hasHashFile->id,
-                'hash' => $hash
-            ]);
+            // throw new Exception($filePath . '已入临时库');
             $id = $hasHashFile->id;
             return $id;
         }
@@ -109,168 +106,40 @@ class VideoTempService
 
         $model->save($data);
         $id = $model->id;
-        
-        // 记录新增日志
-        \think\facade\Log::info('新增视频到临时库', [
-            'file_path' => $filePath,
-            'new_id' => $id,
-            'data' => $data
-        ]);
-        
         // 记录处理 key
         $this->saveOssKey($id, $fileKey);
         return $id;
     }
 
     /**
-     * 扫描 创建临时表 - 针对目录结构优化版本
+     * 扫描 创建临时表
      * @throws \think\Exception
      * @return bool
      */
     public function scanDirInVideoTemp()
     {
         $dir = root_path(). 'public/storage/videotemp';
-        
-        // 记录开始扫描日志
-        \think\facade\Log::info('开始扫描视频目录', [
-            'scan_dir' => $dir,
-            'naming_rule' => '标题_标签1_标签2_标签3.扩展名',
-            'example' => '上海名媛权贵专属玩物_主播_福利姬_自慰.mp4'
-        ]);
-        
-        if (!is_dir($dir)) {
-            throw new Exception("目录不存在: " . $dir);
-        }
-        
-        // 直接使用递归扫描所有文件
-        $allFiles = $this->recursiveScanDirectory($dir);
-        
-        \think\facade\Log::info('扫描文件完成', [
-            'total_files' => count($allFiles),
-            'files' => array_map('basename', $allFiles)
-        ]);
-        
-        // 先按目录分组，确保每个目录的视频和图片文件配对处理
-        $filesByDir = [];
-        foreach ($allFiles as $file) {
-            $dirPath = dirname($file);
-            $ext = $this->getExtension($file);
-            
-            if (!isset($filesByDir[$dirPath])) {
-                $filesByDir[$dirPath] = ['mp4' => null, 'images' => []];
-            }
-            
-            if ($ext == 'mp4') {
-                $filesByDir[$dirPath]['mp4'] = $file;
-            } elseif (in_array($ext, ['png', 'jpg', 'jpeg'])) {
-                $filesByDir[$dirPath]['images'][] = $file;
-            }
-        }
-        
-        $stats = [
-            'mp4_count' => 0,
-            'processed_count' => 0,
-            'skipped_count' => 0,
-            'invalid_dirs' => 0,
-            'processed_details' => []
-        ];
+        $dirs = scandir($dir);
+        // 使用 array_filter 排除前面带点的文件
+        $filtered_files = array_filter($dirs, function ($file) {
+            // 如果文件是以点开头的，返回 false 以排除它
+            return !preg_match('/^\./', $file);
+        });
+
+        $filtered_files = array_values($filtered_files);
+        $files = $this->getDirectoryFileList($filtered_files, $dir);
         
         try {
-            foreach ($filesByDir as $dirPath => $files) {
-                if ($files['mp4'] && !empty($files['images'])) {
-                    $stats['mp4_count']++;
-                    
-                    $processInfo = [
-                        'dir_name' => basename($dirPath),
-                        'video_file' => basename($files['mp4']),
-                        'image_files' => array_map('basename', $files['images'])
-                    ];
-                    
-                    // 解析文件名信息
-                    $title = $this->getTitleByPath($files['mp4']);
-                    $tags = $this->getTagsByPath($files['mp4']);
-                    $type = $this->getTypeByPath($files['mp4']);
-                    
-                    $processInfo['parsed_data'] = [
-                        'title' => $title,
-                        'tags' => $tags,
-                        'type' => $type
-                    ];
-                    
-                    $result = $this->createTempVideo($files['mp4'], '扫描目录入库临时表');
-                    if ($result) {
-                        // 检查是否是新增的（通过检查hash是否之前就存在）
-                        $hash = sha1_file($files['mp4']);
-                        $model = new VideoTemp();
-                        $existingFile = $model->where('hash', $hash)->find();
-                        
-                        if ($existingFile && $existingFile->remark != '扫描目录入库临时表') {
-                            $stats['skipped_count']++;
-                            $processInfo['status'] = 'skipped';
-                            $processInfo['reason'] = '文件已存在';
-                        } else {
-                            $stats['processed_count']++;
-                            $processInfo['status'] = 'success';
-                            $processInfo['new_id'] = $result;
-                        }
-                    }
-                    
-                    $stats['processed_details'][] = $processInfo;
-                } else {
-                    $stats['invalid_dirs']++;
-                    $reason = [];
-                    if (!$files['mp4']) $reason[] = '缺少mp4文件';
-                    if (empty($files['images'])) $reason[] = '缺少图片文件';
-                    
-                    \think\facade\Log::warning('跳过无效目录', [
-                        'dir_name' => basename($dirPath),
-                        'reason' => $reason
-                    ]);
+            foreach ($files as $file) {
+                $ext = $this->getExtension($file);
+                if ($ext == 'mp4') {
+                    $this->createTempVideo($file, '扫描目录入库临时表');
                 }
             }
-            
-            // 记录最终统计结果
-            \think\facade\Log::info('扫描完成统计', [
-                'scan_directories_total' => count($filesByDir),
-                'valid_video_directories' => $stats['mp4_count'],
-                'mp4_files_found' => $stats['mp4_count'],
-                'new_records_created' => $stats['processed_count'],
-                'existing_files_skipped' => $stats['skipped_count'],
-                'invalid_directories' => $stats['invalid_dirs'],
-                'detailed_results' => $stats['processed_details']
-            ]);
-            
         } catch (Exception $e) {
-            \think\facade\Log::error('扫描过程中发生错误', [
-                'error_message' => $e->getMessage(),
-                'error_file' => $e->getFile(),
-                'error_line' => $e->getLine()
-            ]);
             throw new Exception($e->getMessage());
         }
         return true;
-    }
-
-    /**
-     * 递归扫描目录获取所有文件 - 新版本
-     * @param string $directory
-     * @return array
-     */
-    protected function recursiveScanDirectory($directory)
-    {
-        $files = [];
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::LEAVES_ONLY
-        );
-
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $files[] = $file->getRealPath();
-            }
-        }
-
-        return $files;
     }
 
     /**
@@ -357,7 +226,6 @@ class VideoTempService
             // 修改更新状态
             VideoTemp::where('id', $list['id'])->update(['is_sys' => 1]);
         }
-        return true;
     }
 
     /**
@@ -513,7 +381,6 @@ class VideoTempService
                 SkinVideoTypeLogo::create($skinTypLogo);
             }
         }
-        return '';
     }
 
     /**
@@ -523,6 +390,7 @@ class VideoTempService
      */
     protected function checkVideoPath($tempVideo)
     {
+
         $videoUrl = $tempVideo['path'] . '/' . $tempVideo['filename'];
         $thumbUrl = $tempVideo['image'];
         return [
@@ -549,48 +417,35 @@ class VideoTempService
     }
 
     /**
-     * 获取视频封面 - 优化版本，支持 png/jpg 格式
+     * 获取视频封面
      * @param mixed $videoFilePath
      * @return string
      */
     protected function getVideoCoverImage($videoFilePath)
     {
-        // 获取视频文件的名称（不包括路径和扩展名）
-        $videoBasename = pathinfo($videoFilePath, PATHINFO_FILENAME);
-        $videoDir = pathinfo($videoFilePath, PATHINFO_DIRNAME);
-        
-        // 图片可能的扩展名，按常见性排序
-        $imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-        
-        // 循环遍历可能的扩展名，检查每个扩展名的图片是否存在
-        foreach ($imageExtensions as $ext) {
-            // 构建图片文件的路径
-            $imagePath = $videoDir . '/' . $videoBasename . '.' . $ext;
-            // 检查图片文件是否存在
-            if (file_exists($imagePath)) {
-                \think\facade\Log::debug('找到同名封面图片', [
-                    'video_file' => basename($videoFilePath),
-                    'cover_image' => basename($imagePath)
-                ]);
-                return $imagePath;
+        $videoFiles = glob($videoFilePath);
+        // 检查是否找到了视频文件
+        if (!empty($videoFiles)) {
+            // 取出第一个视频文件的路径（只有一个）
+            $videoFile = $videoFiles[0];
+            // 获取视频文件的名称（不包括路径和扩展名）
+            $videoBasename = pathinfo($videoFile, PATHINFO_FILENAME);
+            // 图片可能的扩展名
+            $imageExtensions = ['png', 'jpg', 'jpeg'];
+            $imagePath = '';
+            // 循环遍历可能的扩展名，检查每个扩展名的图片是否存在
+            foreach ($imageExtensions as $ext) {
+                // 构建图片文件的路径
+                $imagePath = pathinfo($videoFile, PATHINFO_DIRNAME) . '/' . $videoBasename . '.' . $ext;
+                // 检查图片文件是否存在
+                if (file_exists($imagePath)) {
+                    break;
+                }
             }
+            return $imagePath;
+        } else {
+            return '';
         }
-        
-        // 如果没找到同名图片，尝试查找目录下的第一个图片文件
-        $dirFiles = glob($videoDir . '/*.{jpg,jpeg,png,webp,gif}', GLOB_BRACE);
-        if (!empty($dirFiles)) {
-            \think\facade\Log::info('使用目录中的第一个图片作为封面', [
-                'video_file' => basename($videoFilePath),
-                'cover_image' => basename($dirFiles[0])
-            ]);
-            return $dirFiles[0];
-        }
-        
-        \think\facade\Log::warning('未找到封面图片', [
-            'video_file' => basename($videoFilePath),
-            'video_dir' => $videoDir
-        ]);
-        return '';
     }
 
     /**
@@ -606,9 +461,7 @@ class VideoTempService
     }
 
     /**
-     * 通过路径获取标签 - 基于命名规则优化
-     * 命名规则：标题_标签1_标签2_标签3.扩展名
-     * 例如：上海名媛权贵专属玩物_主播_福利姬_自慰.mp4
+     * 通过路径获取标签
      * @param mixed $filePath
      * @return string
      */
@@ -617,51 +470,9 @@ class VideoTempService
         $extension = $this->getExtension($filePath);
         $filename = basename($filePath);
         $filename = str_replace('.' . $extension, '', $filename);
-        
-        $filenameParts = explode('_', $filename);
-        
-        // 第一个部分是标题，后面的都是标签
-        if (count($filenameParts) > 1) {
-            // 移除第一个元素（标题）
-            unset($filenameParts[0]);
-            // 重新索引数组并连接成标签字符串
-            $tags = join(',', array_values($filenameParts));
-            
-            \think\facade\Log::debug('解析文件标签', [
-                'filename' => $filename,
-                'parsed_tags' => $tags,
-                'all_parts' => $filenameParts
-            ]);
-            
-            return $tags;
-        }
-        
-        \think\facade\Log::warning('文件未找到标签', ['filename' => $filename]);
-        return '';
-    }
-
-    /**
-     * 通过文件路径获取视频标题
-     * @param mixed $filePath
-     * @return string
-     */
-    protected function getTitleByPath($filePath)
-    {
-        $extension = $this->getExtension($filePath);
-        $filename = basename($filePath);
-        $filename = str_replace('.' . $extension, '', $filename);
-        
-        $filenameParts = explode('_', $filename);
-        
-        // 第一个部分就是标题
-        $title = $filenameParts[0];
-        
-        \think\facade\Log::debug('解析文件标题', [
-            'filename' => $filename,
-            'parsed_title' => $title
-        ]);
-        
-        return $title;
+        $filenameTags = explode('_', $filename);
+        unset($filenameTags[0]);
+        return empty($filenameTags) ? '' : join(',', $filenameTags);
     }
 
     /**
@@ -710,14 +521,14 @@ class VideoTempService
     }
 
     /**
-     * 获取文件目录列表 - 修复版本
+     * 获取文件目录列表
      * @param mixed $directories
      * @param mixed $topDir
      * @return array
      */
     protected function getDirectoryFileList($directories, $topDir)
     {
-        $files = []; // ✅ 修复：初始化 $files 数组
+        $files = []; // ✅ 添加这一行来初始化 $files 数组
         
         foreach ($directories as $dir) {
             // 获取目录中的所有项
@@ -780,29 +591,22 @@ class VideoTempService
         return $files;
     }
 
-    /**
-     * 重新整理视频数据
-     * @return void
-     */
+
+
     public function reNewVieo(){
-        \think\facade\Log::info('开始执行视频梳理');
-        
+        echo "开始执行 视频梳理". PHP_EOL;
         // 读取全部 视频临时表
         $videoTempAll = (new VideoTemp())->select()->toArray();
-        \think\facade\Log::info('视频梳理统计', [
-            'total_count' => count($videoTempAll)
-        ]);
-        
+        echo "合计" .count($videoTempAll).'需要梳理'. PHP_EOL;
+        // dump($videoTempAll);
         // 遍历 全部
         foreach($videoTempAll as $key => $item){
-            \think\facade\Log::debug('处理视频ID', ['id' => $item['id']]);
-            
+            echo "当下执行ID:".$item['id']. PHP_EOL;
             $path_bath = root_path() . 'public/storage';
             $file_temp_video = '';   // 临时的 视频文件
             $file_temp_img = '';    // 临时的 封面文件 
             $temp_file_name = '';   // 获取 文件名字
-            
-            // 1 首先判断 是否3或4个 文件 因为重新更新了 文件名
+            // 1 首先判断 是否4个 文件 因为重新更新了 文件名
             $path = $path_bath.$item['path'];
             $localDir = scandir($path);
             // 过滤掉 '.' 和 '..'
@@ -811,13 +615,6 @@ class VideoTempService
             });
             $localDir = array_values($localDir);
             $fileNumbers = count($localDir);
-            
-            \think\facade\Log::debug('目录文件统计', [
-                'id' => $item['id'],
-                'path' => $path,
-                'file_count' => $fileNumbers,
-                'files' => $localDir
-            ]);
             
             if($fileNumbers == 3){
                 foreach($localDir as $k_file => $val_file){
@@ -842,15 +639,12 @@ class VideoTempService
             }
             
             if($fileNumbers < 3 || $fileNumbers > 4){
-                \think\facade\Log::warning('跳过无效文件数量的目录', [
-                    'id' => $item['id'],
-                    'file_count' => $fileNumbers,
-                    'expected' => '3 or 4'
-                ]);
                 // 本次循环 跳出
                 continue;
             }
 
+            // dump($file_temp_video);
+            // dump($file_temp_img);
             // 为了 file_key 重新处理一下
             $key_path = str_replace('/videotemp/','',$item['path']);
             $key_video = str_replace('_','#',$file_temp_video);
@@ -864,22 +658,17 @@ class VideoTempService
             }
             if($fileNumbers == 4){
                 $dataVideTempReNew['remark'] = '替换png图片为jpg图片同时替换了标签文件';
-                $dataVideTempReNew['file_key'] = $key_path.'/'.$key_video.','.$key_path.'/'.$key_img;
+                $dataVideTempReNew['file_key'] = $key_path.'/'.$key_video.','.$key_path.'/'.$key_img;;
                 $dataVideTempReNew['image'] = $path_bath.$item['path'].'/'.$file_temp_img;
                 $dataVideTempReNew['filename'] = $file_temp_video;
             }
 
             // 3 更新当前 临时表
             VideoTemp::where('id', $item['id'])->update($dataVideTempReNew);
-            
-            \think\facade\Log::debug('更新临时表数据', [
-                'id' => $item['id'],
-                'update_data' => $dataVideTempReNew
-            ]);
-
             // 2 选择 封面 图标的 类型
+
             $vidoInfo = (new Video())->where('title',$temp_file_name)->find();
-            
+            // dump($vidoInfo);
             if($vidoInfo){
                 // 更新 视频 主表
                 $videoData = [
@@ -890,14 +679,10 @@ class VideoTempService
                     'create_time' => date('Y-m-d H:i:s',time()),
                     'update_time' => date('Y-m-d H:i:s',time()),
                 ];
-                
-                \think\facade\Log::info('更新现有视频', [
-                    'video_id' => $vidoInfo->id,
-                    'title' => $temp_file_name,
-                    'update_data' => $videoData
-                ]);
-                
-                (new Video())->where('id',$vidoInfo->id)->update($videoData);
+                // dump($videoData);
+                $sql = (new Video())->where('id',$item['id'])->fetchSql(true)->update($videoData);
+                // dump($sql);
+                (new Video())->where('id',$item['id'])->update($videoData);
             }else{
                 // 验证分类是否存在
                 $type = $this->checkVideoType($item);
@@ -913,16 +698,25 @@ class VideoTempService
                     'create_time' => date('Y-m-d H:i:s',time()),
                     'update_time' => date('Y-m-d H:i:s',time()),
                 ];
-                
-                \think\facade\Log::info('新增视频记录', [
-                    'title' => $temp_file_name,
-                    'insert_data' => $videoData
-                ]);
-                
+                // dump($videoData);
+                $sql = (new Video())->fetchSql(true)->insert($videoData);
+                // dump($sql);
                 (new Video())->insert($videoData);
             }
+
         }
-        
-        \think\facade\Log::info('视频梳理完成');
     }
+
+
+
+
+
+
+
+
+
+
+
+
+// 类结束了    
 }

@@ -1,5 +1,4 @@
 <?php
-//config('ToConfig.app_update.image_url')
 return [
     'app_system' => [
         'app_system' => true,//false win系统 true linux
