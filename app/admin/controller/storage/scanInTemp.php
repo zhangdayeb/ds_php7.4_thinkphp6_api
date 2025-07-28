@@ -2,17 +2,17 @@
 
 namespace app\admin\controller\storage;
 
-use app\admin\controller\Base;
+use app\BaseController;
 use app\common\service\VideoTempService;
 use think\facade\Db;
 use Exception;
 
-class scanInTemp extends Base
+class scanInTemp extends BaseController
 {
     private $batchSize = 50; // 每批处理的文件数量
     private $scanDir = '';
 
-    public function initialize()
+    protected function initialize()
     {
         parent::initialize();
         $this->scanDir = root_path() . 'public/storage/videotemp';
@@ -25,7 +25,7 @@ class scanInTemp extends Base
     public function scanAll()
     {
         try {
-            $adminId = session('admin_user.id') ?: 1;
+            $adminId = 1; // 固定使用管理员ID为1
             
             // 1. 检查是否是首次扫描
             $isFirstScan = $this->checkIfFirstScan();
@@ -40,7 +40,7 @@ class scanInTemp extends Base
             $allFiles = $this->getAllVideoFiles();
             
             if (empty($allFiles)) {
-                return $this->success([
+                return $this->returnSuccess([
                     'status' => 'completed',
                     'message' => '没有找到任何视频文件',
                     'total_files' => 0,
@@ -55,7 +55,7 @@ class scanInTemp extends Base
             
             // 4. 检查是否已完成
             if (empty($remainingFiles)) {
-                return $this->success([
+                return $this->returnSuccess([
                     'status' => 'completed',
                     'message' => '扫描已完成！',
                     'total_files' => count($allFiles),
@@ -75,7 +75,7 @@ class scanInTemp extends Base
             $progressPercent = round(($nowProcessedFiles / $totalFiles) * 100, 1);
             
             // 7. 返回当前状态
-            return $this->success([
+            return $this->returnSuccess([
                 'status' => $nowProcessedFiles >= $totalFiles ? 'completed' : 'processing',
                 'message' => "本批次处理完成",
                 'total_files' => $totalFiles,
@@ -92,7 +92,7 @@ class scanInTemp extends Base
             
         } catch (Exception $e) {
             $this->logError('扫描过程发生错误', $e->getMessage());
-            return $this->failed('扫描失败: ' . $e->getMessage());
+            return $this->returnFailed('扫描失败: ' . $e->getMessage());
         }
     }
 
@@ -326,13 +326,9 @@ class scanInTemp extends Base
      * @param array $data
      * @return \think\response\Json
      */
-    private function success($data)
+    private function returnSuccess($data)
     {
-        return json([
-            'code' => 200,
-            'msg' => 'success',
-            'data' => $data
-        ]);
+        return $this->success($data);
     }
 
     /**
@@ -340,12 +336,8 @@ class scanInTemp extends Base
      * @param string $message
      * @return \think\response\Json
      */
-    private function failed($message)
+    private function returnFailed($message)
     {
-        return json([
-            'code' => 500,
-            'msg' => $message,
-            'data' => null
-        ]);
+        return $this->failed($message);
     }
 }
