@@ -588,6 +588,11 @@ class GoodsService
     //查看是否购买当前视频的权限
     public function alone_purchase($find)
     {
+        // 临时给所有人都免费
+        $find->is_purchase=1;
+        return $find;
+
+        // 之前的逻辑
         //查看是否开通了会员
         $home_user = session('home_user');
         //查询用户购买的套餐
