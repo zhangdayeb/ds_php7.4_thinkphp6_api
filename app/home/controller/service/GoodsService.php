@@ -675,34 +675,38 @@ class GoodsService
     /**
      * Convert MP4 to M3U8 format.
      * mp4 转 m3u8
+     * @param string $videoId Video ID
      * @param string $inputFile Path to the input MP4 file.
      * @param string $outputDir Path to the output directory.
      * @return string|bool The path to the generated M3U8 file or false on failure.
      */
-    public function convertMp4ToM3u8($videoId,$inputFile, $outputDir)
+    public function convertMp4ToM3u8($videoId, $inputFile, $outputDir)
     {
-        $name = uniqid();
-        $name = 'videoid'.$videoId;
+        $name = 'videoid' . $videoId;
+        
         if (!file_exists($inputFile)) {
             return false;
         }
+        
         if (!is_dir($outputDir.'/'.$name)) {
             mkdir($outputDir.'/'.$name, 0777, true);
         }
+        
         $fileName = $name. '/play.m3u8';
         $outputFile = $outputDir . '/' . $fileName;
-        $command = "ffmpeg -i " . escapeshellarg($inputFile) . " -codec copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls " . escapeshellarg($outputFile);
         
-        // 记录执行的命令到日志，方便手工测试
-        \think\facade\Log::info("FFmpeg执行命令: " . $command);
+        // 修复H.264比特流问题的命令
+        $command = "ffmpeg -i " . escapeshellarg($inputFile) . " -bsf:v h264_mp4toannexb -codec copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls " . escapeshellarg($outputFile) . " 2>&1";
         
         exec($command, $output, $return_var);
         
-        // 记录命令执行结果
-        \think\facade\Log::info("FFmpeg返回码: " . $return_var);
-        \think\facade\Log::info("FFmpeg输出: " . implode("\n", $output));
+        // 如果第一个命令失败，尝试重新编码
+        if ($return_var !== 0) {
+            $command = "ffmpeg -i " . escapeshellarg($inputFile) . " -c:v libx264 -c:a aac -start_number 0 -hls_time 10 -hls_list_size 0 -f hls " . escapeshellarg($outputFile) . " 2>&1";
+            exec($command, $output, $return_var);
+        }
         
-        if ($return_var === 0) {
+        if ($return_var === 0 && file_exists($outputFile)) {
             return $fileName;
         } else {
             return false;
