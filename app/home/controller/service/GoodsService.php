@@ -691,8 +691,17 @@ class GoodsService
         }
         $fileName = $name. '/play.m3u8';
         $outputFile = $outputDir . '/' . $fileName;
-        $command = "ffmpeg -i " . escapeshellarg($inputFile) . " -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls " . escapeshellarg($outputFile);
+        $command = "ffmpeg -i " . escapeshellarg($inputFile) . " -codec copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls " . escapeshellarg($outputFile);
+        
+        // 记录执行的命令到日志，方便手工测试
+        \think\facade\Log::info("FFmpeg执行命令: " . $command);
+        
         exec($command, $output, $return_var);
+        
+        // 记录命令执行结果
+        \think\facade\Log::info("FFmpeg返回码: " . $return_var);
+        \think\facade\Log::info("FFmpeg输出: " . implode("\n", $output));
+        
         if ($return_var === 0) {
             return $fileName;
         } else {
